@@ -30,7 +30,7 @@ class SSHSession(ExpectSession, ConnectionParams):
 
         self.username = username
         self.password = password
-        self.pkey = pkey
+        self.pkey = self._init_private_key_instance(pkey) if pkey else None
 
         self._handler = None
         self._current_channel = None
@@ -50,6 +50,13 @@ class SSHSession(ExpectSession, ConnectionParams):
 
     def __del__(self):
         self.disconnect()
+
+    @staticmethod
+    def _init_private_key_instance(key_string):
+        try:
+            return paramiko.RSAKey(file_obj=StringIO(key_string))
+        except paramiko.SSHException:
+            return paramiko.DSSKey(file_obj=StringIO(key_string))
 
     def _create_handler(self):
         self._handler = paramiko.SSHClient()
