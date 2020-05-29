@@ -1,4 +1,5 @@
 import socket
+from io import StringIO
 
 import paramiko
 from scp import SCPClient
@@ -86,7 +87,7 @@ class SSHSession(ExpectSession, ConnectionParams):
                 banner_timeout=30,
                 allow_agent=False,
                 look_for_keys=False,
-                pkey=self.pkey,
+                pkey=self._init_private_key_instance(self.pkey) if self.pkey else None,
             )
         except Exception as e:
             logger.exception("Failed to initialize session:")
@@ -96,6 +97,13 @@ class SSHSession(ExpectSession, ConnectionParams):
 
         self._current_channel = self._handler.invoke_shell()
         self._current_channel.settimeout(self._timeout)
+
+    @staticmethod
+    def _init_private_key_instance(key_string):
+        try:
+            return paramiko.RSAKey(file_obj=StringIO(key_string))
+        except paramiko.SSHException:
+            return paramiko.DSSKey(file_obj=StringIO(key_string))
 
     def _connect_actions(self, prompt, logger):
         """Connect actions.

@@ -22,7 +22,6 @@ class ConnectionParams(ABC):
             self.host = host
 
         self.on_session_start = on_session_start
-        self.pkey = pkey
 
     def _on_session_start(self, logger):
         if self.on_session_start and callable(self.on_session_start):

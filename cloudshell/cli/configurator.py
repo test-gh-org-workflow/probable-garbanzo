@@ -24,7 +24,9 @@ class CLIServiceConfigurator(object):
         :param cloudshell.shell.standards.resource_config_generic_models.GenericCLIConfig resource_config:  # noqa: E501
         :param logging.Logger logger:
         :param cloudshell.cli.service.cli.CLI cli:
-        :param registered_sessions: Session types and order
+        :param collections.Iterable registered_sessions: Registered session types and order,
+        could be defined as a dict with initialize methods. Example:
+        {SSHSession: self._initialize_ssh_session}.
         """
         self._cli = cli or CLI()
         self._resource_config = resource_config
@@ -39,6 +41,11 @@ class CLIServiceConfigurator(object):
     @lru_cache()
     def _password(self):
         return self._resource_config.password
+
+    @property
+    @lru_cache()
+    def _pkey(self):
+        return self._resource_config.private_key
 
     @property
     def _resource_address(self):
@@ -67,24 +74,41 @@ class CLIServiceConfigurator(object):
         """
         pass
 
-    @property
-    @lru_cache()
-    def _session_kwargs(self):
-        return {
-            "host": self._resource_address,
-            "username": self._username,
-            "password": self._password,
-            "port": self._port,
-            "on_session_start": self._on_session_start,
-        }
+    def _assign_initializers(self):
+        pass
+
+    def _initialize_session(self, session_class):
+        return session_class(
+            host=self._resource_address,
+            username=self._username,
+            password=self._password,
+            port=self._port,
+            on_session_start=self._on_session_start,
+        )
+
+    def _initialize_ssh_session_with_pkey(self, session_class):
+        return session_class(
+            host=self._resource_address,
+            username=self._username,
+            password=self._password,
+            port=self._port,
+            on_session_start=self._on_session_start,
+            pkey=self._pkey,
+        )
 
     def _defined_sessions(self):
-        return [
-            sess(**self._session_kwargs)
-            for sess in self._session_dict.get(
-                self._cli_type.lower(), self._registered_sessions
-            )
-        ]
+        sessions = []
+        for sess in self._session_dict.get(
+            self._cli_type.lower(), self._registered_sessions
+        ):
+            if isinstance(self._registered_sessions, dict):
+                session_initializer = (
+                    self._registered_sessions.get(sess) or self._initialize_session
+                )
+            else:
+                session_initializer = self._initialize_session
+            sessions.append(session_initializer(sess))
+        return sessions
 
     def get_cli_service(self, command_mode):
         """Use cli.get_session to open CLI connection and switch into required mode.
